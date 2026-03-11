@@ -827,7 +827,7 @@ async function embedStampImage(pdfLibDoc) {
 
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => {
+    const handleLoad = () => {
       const ratio = img.naturalHeight / img.naturalWidth;
       // 원본이 이미 충분히 크면 그대로, 작으면 업스케일
       const outW = Math.max(img.naturalWidth, neededPx);
@@ -842,14 +842,20 @@ async function embedStampImage(pdfLibDoc) {
       ctx.drawImage(img, 0, 0, outW, outH);
 
       offscreen.toBlob(blob => {
+        if (!blob) { reject(new Error('Canvas toBlob 실패')); return; }
         blob.arrayBuffer()
           .then(buf => pdfLibDoc.embedPng(new Uint8Array(buf)))
           .then(resolve)
           .catch(reject);
       }, 'image/png');
     };
+    img.onload = handleLoad;
     img.onerror = reject;
     img.src = stampImgSrc;
+    // 이미지가 이미 로드된 경우(캐시) onload가 발생하지 않을 수 있으므로 직접 호출
+    if (img.complete && img.naturalWidth > 0) {
+      handleLoad();
+    }
   });
 }
 
