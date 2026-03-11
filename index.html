@@ -425,8 +425,23 @@ async function activateDefaultStamp(index) {
 
   const url = DEFAULT_STAMP_URLS[index];
   showToast('기본 도장을 불러오는 중...', '');
-  const dataUrl = await urlToDataUrl(url);
-  stampImgSrc = dataUrl;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('fetch failed');
+    const blob = await resp.blob();
+    stampFileMime = blob.type || 'image/png';
+    stampFileBytes = await blob.arrayBuffer();
+    stampImgSrc = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch(e) {
+    stampFileBytes = null;
+    stampFileMime = '';
+    stampImgSrc = url;
+  }
 
   // Preview
   stampPreviewImg.src = dataUrl;
@@ -825,33 +840,49 @@ async function embedStampImage(pdfLibDoc) {
   // 300 DPI 기준 필요 픽셀 수
   const neededPx = Math.ceil(maxStampW * TARGET_DPI / PT_PER_INCH);
 
+  // stampFileBytes가 있으면 blob URL 사용 (cross-origin 캔버스 오염 방지)
+  let imgSrc = stampImgSrc;
+  let blobUrl = null;
+  if (stampFileBytes) {
+    const blob = new Blob([stampFileBytes], { type: stampFileMime || 'image/png' });
+    blobUrl = URL.createObjectURL(blob);
+    imgSrc = blobUrl;
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
+    const cleanup = () => { if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; } };
     const handleLoad = () => {
-      const ratio = img.naturalHeight / img.naturalWidth;
-      // 원본이 이미 충분히 크면 그대로, 작으면 업스케일
-      const outW = Math.max(img.naturalWidth, neededPx);
-      const outH = Math.round(outW * ratio);
+      try {
+        const ratio = img.naturalHeight / img.naturalWidth;
+        // 원본이 이미 충분히 크면 그대로, 작으면 업스케일
+        const outW = Math.max(img.naturalWidth, neededPx);
+        const outH = Math.round(outW * ratio);
 
-      const offscreen = document.createElement('canvas');
-      offscreen.width = outW;
-      offscreen.height = outH;
-      const ctx = offscreen.getContext('2d');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, outW, outH);
+        const offscreen = document.createElement('canvas');
+        offscreen.width = outW;
+        offscreen.height = outH;
+        const ctx = offscreen.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, outW, outH);
 
-      offscreen.toBlob(blob => {
-        if (!blob) { reject(new Error('Canvas toBlob 실패')); return; }
-        blob.arrayBuffer()
-          .then(buf => pdfLibDoc.embedPng(new Uint8Array(buf)))
-          .then(resolve)
-          .catch(reject);
-      }, 'image/png');
+        offscreen.toBlob(blob => {
+          cleanup();
+          if (!blob) { reject(new Error('Canvas toBlob 실패')); return; }
+          blob.arrayBuffer()
+            .then(buf => pdfLibDoc.embedPng(new Uint8Array(buf)))
+            .then(resolve)
+            .catch(reject);
+        }, 'image/png');
+      } catch(e) {
+        cleanup();
+        reject(e);
+      }
     };
     img.onload = handleLoad;
-    img.onerror = reject;
-    img.src = stampImgSrc;
+    img.onerror = (e) => { cleanup(); reject(new Error('도장 이미지를 불러올 수 없습니다.')); };
+    img.src = imgSrc;
     // 이미지가 이미 로드된 경우(캐시) onload가 발생하지 않을 수 있으므로 직접 호출
     if (img.complete && img.naturalWidth > 0) {
       handleLoad();
@@ -868,6 +899,9 @@ async function downloadPdf() {
     const pdfLibDoc = await PDFDocument.load(pdfBytes);
     const pages = pdfLibDoc.getPages();
 
+    if (!stampFileBytes && stampImgSrc && !stampImgSrc.startsWith('data:')) {
+      throw new Error('기본 도장을 서버에서 불러오지 못했습니다. 페이지를 새로고침 후 다시 시도해주세요.');
+    }
     const embeddedImg = await embedStampImage(pdfLibDoc);
 
     // For each page with stamps, draw them
