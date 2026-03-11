@@ -98,6 +98,18 @@
   .opacity-row { display: flex; align-items: center; gap: 8px; }
   .opacity-row input[type="number"] { width: 52px; border: 1px solid #ddd; border-radius: 6px; padding: 4px 6px; font-size: 12px; text-align: center; }
 
+  .pw-row { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .pw-input { flex: 1; border: 1px solid #ddd; border-radius: 6px; padding: 6px 10px; font-size: 13px; outline: none; transition: border-color 0.2s; }
+  .pw-input:focus { border-color: #4a90d9; }
+  .default-stamps { margin-top: 2px; margin-bottom: 4px; }
+  .default-stamps-label { font-size: 11px; color: #888; margin-bottom: 6px; }
+  .default-stamps-row { display: flex; gap: 10px; }
+  .default-stamp-btn { cursor: pointer; border: 2px solid #ddd; border-radius: 8px; padding: 4px; background: repeating-conic-gradient(#f0f0f0 0% 25%, white 0% 50%) 0 0 / 12px 12px; transition: border-color 0.2s, box-shadow 0.2s; }
+  .default-stamp-btn:hover { border-color: #4a90d9; box-shadow: 0 0 0 2px #d0e8ff; }
+  .default-stamp-btn.selected { border-color: #27ae60; box-shadow: 0 0 0 2px #c3f0d4; }
+  .default-stamp-btn img { width: 64px; height: 64px; object-fit: contain; display: block; pointer-events: none; }
+  .default-stamp-btn span { display: block; text-align: center; font-size: 10px; color: #777; margin-top: 2px; }
+
   @media (max-width: 640px) {
     .container { flex-direction: column; }
     .sidebar { width: 100%; min-width: unset; max-height: 50vh; }
@@ -149,6 +161,25 @@
     <!-- Stamp Upload -->
     <div class="sidebar-section">
       <h3>도장 / 서명 이미지</h3>
+
+      <!-- Password default stamps -->
+      <div class="pw-row">
+        <input type="password" class="pw-input" id="stampPwInput" placeholder="비밀번호 입력 (기본 도장 사용)" maxlength="20" autocomplete="off">
+      </div>
+      <div class="default-stamps" id="defaultStampsWrap" style="display:none">
+        <div class="default-stamps-label">기본 도장 선택 (클릭하여 활성화)</div>
+        <div class="default-stamps-row">
+          <div class="default-stamp-btn" id="defaultStamp1" title="기본 도장 1">
+            <img src="http://iammary.mycafe24.com/IMAGE/stamp1.png" alt="도장1" crossorigin="anonymous">
+            <span>도장 1</span>
+          </div>
+          <div class="default-stamp-btn" id="defaultStamp2" title="기본 도장 2">
+            <img src="http://iammary.mycafe24.com/IMAGE/stamp2.png" alt="도장2" crossorigin="anonymous">
+            <span>도장 2</span>
+          </div>
+        </div>
+      </div>
+
       <div class="drop-zone" id="stampDrop">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -377,6 +408,73 @@ removePdf.addEventListener('click', () => {
   updateStampList();
 });
 
+// ---- Default Stamp (Password) ----
+const DEFAULT_STAMP_URLS = [
+  'http://iammary.mycafe24.com/IMAGE/stamp1.png',
+  'http://iammary.mycafe24.com/IMAGE/stamp2.png'
+];
+let activeDefaultStampIndex = null; // 0 or 1
+
+async function urlToDataUrl(url) {
+  try {
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch(e) {
+    // CORS 실패 시 URL 직접 사용
+    return url;
+  }
+}
+
+async function activateDefaultStamp(index) {
+  activeDefaultStampIndex = index;
+  document.getElementById('defaultStamp1').classList.toggle('selected', index === 0);
+  document.getElementById('defaultStamp2').classList.toggle('selected', index === 1);
+
+  const url = DEFAULT_STAMP_URLS[index];
+  showToast('기본 도장을 불러오는 중...', '');
+  const dataUrl = await urlToDataUrl(url);
+  stampImgSrc = dataUrl;
+
+  // Preview
+  stampPreviewImg.src = dataUrl;
+  stampPreviewWrap.style.display = 'block';
+  stampFileName.textContent = '기본 도장 ' + (index + 1);
+  stampControls.style.display = 'block';
+
+  // Natural dimensions
+  const img = new Image();
+  img.onload = () => { stampImgNaturalW = img.naturalWidth; stampImgNaturalH = img.naturalHeight; };
+  img.src = dataUrl;
+
+  showToast('기본 도장 ' + (index + 1) + '이 선택되었습니다.', 'success');
+  updateDownloadBtn();
+}
+
+document.getElementById('stampPwInput').addEventListener('input', function() {
+  const val = this.value;
+  const wrap = document.getElementById('defaultStampsWrap');
+  if (val === '2015') {
+    wrap.style.display = 'block';
+  } else {
+    wrap.style.display = 'none';
+    // 기본 도장이 활성화된 상태에서 비밀번호가 바뀌면 해제
+    if (activeDefaultStampIndex !== null) {
+      activeDefaultStampIndex = null;
+      document.getElementById('defaultStamp1').classList.remove('selected');
+      document.getElementById('defaultStamp2').classList.remove('selected');
+    }
+  }
+});
+
+document.getElementById('defaultStamp1').addEventListener('click', () => activateDefaultStamp(0));
+document.getElementById('defaultStamp2').addEventListener('click', () => activateDefaultStamp(1));
+
 // ---- Stamp Image Loading ----
 setupDrop(stampDrop, stampInput, loadStamp);
 
@@ -410,6 +508,10 @@ removeStamp.addEventListener('click', () => {
   stampControls.style.display = 'none';
   stampFileName.textContent = '';
   stampPreviewImg.src = '';
+  activeDefaultStampIndex = null;
+  document.getElementById('defaultStamp1').classList.remove('selected');
+  document.getElementById('defaultStamp2').classList.remove('selected');
+  updateDownloadBtn();
 });
 
 // ---- Render PDF Page ----
