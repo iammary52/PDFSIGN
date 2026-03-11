@@ -706,27 +706,39 @@ function updateDownloadBtn() {
 
 downloadBtn.addEventListener('click', downloadPdf);
 
-// 도장 이미지 embed: PNG/JPG는 원본 파일 바이트 직접 사용, 나머지는 고해상도 canvas 변환
+// 도장 이미지 embed: 찍힌 최대 도장 크기 기준 300 DPI 충족하도록 업스케일
 async function embedStampImage(pdfLibDoc) {
-  // PNG: 원본 바이트 직접 embed (무손실, 알파 보존)
-  if (stampFileMime === 'image/png' && stampFileBytes) {
-    return await pdfLibDoc.embedPng(new Uint8Array(stampFileBytes));
+  const TARGET_DPI = 300;
+  const PT_PER_INCH = 72;
+
+  // 모든 페이지에 찍힌 도장 중 최대 너비(PDF points) 계산
+  let maxStampW = 0;
+  for (const list of Object.values(stamps)) {
+    for (const s of list) {
+      if (s.w > maxStampW) maxStampW = s.w;
+    }
   }
-  // JPG: 원본 바이트 직접 embed
-  if ((stampFileMime === 'image/jpeg' || stampFileMime === 'image/jpg') && stampFileBytes) {
-    return await pdfLibDoc.embedJpg(new Uint8Array(stampFileBytes));
-  }
-  // WebP 등 기타: canvas를 통해 3x 고해상도 PNG로 변환
+  if (maxStampW === 0) maxStampW = 200;
+
+  // 300 DPI 기준 필요 픽셀 수
+  const neededPx = Math.ceil(maxStampW * TARGET_DPI / PT_PER_INCH);
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const scale3x = 3;
+      const ratio = img.naturalHeight / img.naturalWidth;
+      // 원본이 이미 충분히 크면 그대로, 작으면 업스케일
+      const outW = Math.max(img.naturalWidth, neededPx);
+      const outH = Math.round(outW * ratio);
+
       const offscreen = document.createElement('canvas');
-      offscreen.width = img.naturalWidth * scale3x;
-      offscreen.height = img.naturalHeight * scale3x;
+      offscreen.width = outW;
+      offscreen.height = outH;
       const ctx = offscreen.getContext('2d');
-      ctx.scale(scale3x, scale3x);
-      ctx.drawImage(img, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, outW, outH);
+
       offscreen.toBlob(blob => {
         blob.arrayBuffer()
           .then(buf => pdfLibDoc.embedPng(new Uint8Array(buf)))
