@@ -64,7 +64,7 @@
 
   #stampOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 
-  .stamp-handle { position: absolute; cursor: move; user-select: none; }
+  .stamp-handle { position: absolute; cursor: move; user-select: none; pointer-events: auto; }
   .stamp-handle img { display: block; width: 100%; height: 100%; pointer-events: none; -webkit-user-drag: none; }
   .stamp-handle.selected { outline: 2px dashed #4a90d9; outline-offset: 2px; }
   .stamp-handle .resize-handle { position: absolute; width: 10px; height: 10px; background: white; border: 2px solid #4a90d9; border-radius: 50%; cursor: se-resize; right: -5px; bottom: -5px; }
@@ -448,8 +448,8 @@ canvasContainer.addEventListener('click', function(e) {
     if (pdfDoc) showToast('먼저 도장 이미지를 업로드하세요.', 'error');
     return;
   }
-  // Don't place stamp if clicking on existing stamp handle
-  if (e.target !== pdfCanvas && e.target !== stampOverlay) return;
+  // pdfCanvas 직접 클릭일 때만 도장 찍기 (stamp-handle 클릭은 제외)
+  if (e.target !== pdfCanvas) return;
 
   const rect = pdfCanvas.getBoundingClientRect();
   const clickX = e.clientX - rect.left;
@@ -501,6 +501,7 @@ function renderStamps() {
       resizeH.className = 'resize-handle';
       resizeH.addEventListener('mousedown', e => startResize(e, s.id));
       resizeH.addEventListener('touchstart', e => startResizeTouch(e, s.id), { passive: false });
+      resizeH.addEventListener('click', e => e.stopPropagation());
       el.appendChild(resizeH);
 
       const delH = document.createElement('div');
