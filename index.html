@@ -401,11 +401,16 @@ removeStamp.addEventListener('click', () => {
 // ---- Render PDF Page ----
 async function renderPage(num) {
   if (!pdfDoc) return;
+  const dpr = window.devicePixelRatio || 1;
   const page = await pdfDoc.getPage(num);
   const viewport = page.getViewport({ scale });
-  pdfCanvas.width = viewport.width;
-  pdfCanvas.height = viewport.height;
+  // 물리 픽셀로 캔버스 크기 설정 (고DPI 선명도 확보)
+  pdfCanvas.width = Math.floor(viewport.width * dpr);
+  pdfCanvas.height = Math.floor(viewport.height * dpr);
+  pdfCanvas.style.width = viewport.width + 'px';
+  pdfCanvas.style.height = viewport.height + 'px';
   const ctx = pdfCanvas.getContext('2d');
+  ctx.scale(dpr, dpr);
   await page.render({ canvasContext: ctx, viewport }).promise;
   renderStamps();
 }
@@ -416,11 +421,10 @@ function fitZoom() {
   const wrapper = canvasWrapper;
   const ww = wrapper.clientWidth - 48;
   const wh = wrapper.clientHeight - 48;
-  const canvas = pdfCanvas;
-  // Current canvas is at scale=1 equivalent; canvas.width / scale = page width at scale=1
-  // Actually we need page natural size. Let's get it by canvas.width/scale
-  const naturalW = canvas.width / scale;
-  const naturalH = canvas.height / scale;
+  const dpr = window.devicePixelRatio || 1;
+  // CSS 픽셀 기준으로 자연 크기 계산 (DPR 제거)
+  const naturalW = pdfCanvas.width / dpr / scale;
+  const naturalH = pdfCanvas.height / dpr / scale;
   const fitScale = Math.min(ww / naturalW, wh / naturalH, 2.0);
   scale = Math.max(0.2, fitScale);
   renderPage(currentPage);
@@ -693,6 +697,25 @@ function updateDownloadBtn() {
 
 downloadBtn.addEventListener('click', downloadPdf);
 
+// 도장 이미지를 원본 해상도 PNG Uint8Array로 변환 (모든 포맷 대응, 알파 채널 보존)
+function getStampPngBytes() {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const offscreen = document.createElement('canvas');
+      offscreen.width = img.naturalWidth;
+      offscreen.height = img.naturalHeight;
+      const ctx = offscreen.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      offscreen.toBlob(blob => {
+        blob.arrayBuffer().then(buf => resolve(new Uint8Array(buf))).catch(reject);
+      }, 'image/png');
+    };
+    img.onerror = reject;
+    img.src = stampImgSrc;
+  });
+}
+
 async function downloadPdf() {
   if (!pdfBytes || !stampImgSrc) return;
   downloadBtn.disabled = true;
@@ -702,14 +725,9 @@ async function downloadPdf() {
     const pdfLibDoc = await PDFDocument.load(pdfBytes);
     const pages = pdfLibDoc.getPages();
 
-    // Embed stamp image once
-    let embeddedImg;
-    // Determine image type from data URL
-    if (stampImgSrc.startsWith('data:image/png')) {
-      embeddedImg = await pdfLibDoc.embedPng(stampImgSrc);
-    } else {
-      embeddedImg = await pdfLibDoc.embedJpg(stampImgSrc);
-    }
+    // 원본 해상도 PNG 바이트로 임베드 (WebP/JPG/PNG 모두 대응, 투명도 유지)
+    const pngBytes = await getStampPngBytes();
+    const embeddedImg = await pdfLibDoc.embedPng(pngBytes);
 
     // For each page with stamps, draw them
     for (const [pageNumStr, stampList] of Object.entries(stamps)) {
