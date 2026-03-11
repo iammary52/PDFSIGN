@@ -11,6 +11,10 @@
   .header { background: #2c3e50; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
   .header h1 { font-size: 20px; font-weight: 600; }
   .header svg { width: 28px; height: 28px; }
+  .header-right { margin-left: auto; }
+  .download-link { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.15); color: white; text-decoration: none; padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 500; transition: background 0.2s; border: 1px solid rgba(255,255,255,0.25); }
+  .download-link:hover { background: rgba(255,255,255,0.28); }
+  .download-link svg { width: 16px; height: 16px; }
 
   .container { display: flex; height: calc(100vh - 56px); }
 
@@ -107,6 +111,16 @@
     <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
   </svg>
   <h1>PDF 도장 / 서명 찍기</h1>
+  <div class="header-right">
+    <a id="downloadIndexLink" class="download-link" href="index.html" download="pdf-stamp-tool.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      이 도구 다운로드
+    </a>
+  </div>
 </div>
 
 <div class="container">
@@ -787,6 +801,23 @@ async function downloadPdf() {
     updateDownloadBtn();
   }
 }
+
+// ---- Download Index (this tool) ----
+(function() {
+  const link = document.getElementById('downloadIndexLink');
+  if (!link) return;
+  link.addEventListener('click', function(e) {
+    e.preventDefault();
+    const html = '<!DOCTYPE html>' + document.documentElement.outerHTML;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pdf-stamp-tool.html';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+})();
 
 // Deselect stamp when clicking empty area
 stampOverlay.addEventListener('click', e => {
