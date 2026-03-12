@@ -542,10 +542,17 @@ document.getElementById('stampPwInput').addEventListener('input', function() {
 for (let i = 0; i < DEFAULT_STAMP_URLS.length; i++) {
   const btn = document.getElementById('defaultStamp' + (i + 1));
   if (!btn) continue;
-  // 이미지 로드 성공 시 버튼 표시, 실패 시 숨김
+  // 이미지 로드 성공 시 버튼 표시, 실패 시 숨김 (캐시 타이밍 버그 방지)
   const img = btn.querySelector('img');
-  img.addEventListener('load', () => { btn.style.display = ''; });
-  img.addEventListener('error', () => { btn.style.display = 'none'; });
+  const checkImg = ((b, im) => () => {
+    if (im.complete) {
+      b.style.display = im.naturalWidth > 0 ? '' : 'none';
+    } else {
+      im.addEventListener('load', () => { b.style.display = ''; });
+      im.addEventListener('error', () => { b.style.display = 'none'; });
+    }
+  })(btn, img);
+  checkImg();
   btn.addEventListener('click', ((idx) => () => activateDefaultStamp(idx))(i));
 }
 
