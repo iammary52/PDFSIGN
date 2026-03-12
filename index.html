@@ -397,8 +397,8 @@ removePdf.addEventListener('click', () => {
 
 // ---- Default Stamp (Password) ----
 const DEFAULT_STAMP_URLS = [
-  'IMAGE/stamp1.png',
-  'IMAGE/stamp2.png'
+  'http://iammary.mycafe24.com/IMAGE/stamp1.png',
+  'http://iammary.mycafe24.com/IMAGE/stamp2.png'
 ];
 let activeDefaultStampIndex = null; // 0 or 1
 
@@ -491,7 +491,11 @@ async function activateDefaultStamp(index) {
   img.onload = () => { stampImgNaturalW = img.naturalWidth; stampImgNaturalH = img.naturalHeight; };
   img.src = stampImgSrc;
 
-  showToast('기본 도장 ' + (index + 1) + '이 선택되었습니다.', 'success');
+  if (!fetchOk) {
+    showToast('CORS 제한으로 기본 도장을 PDF에 삽입할 수 없습니다. 도장 이미지를 직접 업로드해 주세요.', 'error');
+  } else {
+    showToast('기본 도장 ' + (index + 1) + '이 선택되었습니다.', 'success');
+  }
   updateDownloadBtn();
 }
 
