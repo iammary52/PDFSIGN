@@ -11,11 +11,6 @@
   .header { background: #2c3e50; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
   .header h1 { font-size: 20px; font-weight: 600; }
   .header svg { width: 28px; height: 28px; }
-  .header-right { margin-left: auto; }
-  .download-link { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.15); color: white; text-decoration: none; padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 500; transition: background 0.2s; border: 1px solid rgba(255,255,255,0.25); }
-  .download-link:hover { background: rgba(255,255,255,0.28); }
-  .download-link svg { width: 16px; height: 16px; }
-
   .container { display: flex; height: calc(100vh - 56px); }
 
   /* Sidebar */
@@ -103,7 +98,7 @@
   .pw-input:focus { border-color: #4a90d9; }
   .default-stamps { margin-top: 2px; margin-bottom: 4px; }
   .default-stamps-label { font-size: 11px; color: #888; margin-bottom: 6px; }
-  .default-stamps-row { display: flex; gap: 10px; }
+  .default-stamps-row { display: flex; flex-wrap: wrap; gap: 10px; }
   .default-stamp-btn { cursor: pointer; border: 2px solid #ddd; border-radius: 8px; padding: 4px; background: repeating-conic-gradient(#f0f0f0 0% 25%, white 0% 50%) 0 0 / 12px 12px; transition: border-color 0.2s, box-shadow 0.2s; }
   .default-stamp-btn:hover { border-color: #4a90d9; box-shadow: 0 0 0 2px #d0e8ff; }
   .default-stamp-btn.selected { border-color: #27ae60; box-shadow: 0 0 0 2px #c3f0d4; }
@@ -123,16 +118,6 @@
     <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
   </svg>
   <h1>PDF 도장 / 서명 찍기</h1>
-  <div class="header-right">
-    <a id="downloadIndexLink" class="download-link" href="index.html" download="pdf-stamp-tool.html">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-      이 도구 다운로드
-    </a>
-  </div>
 </div>
 
 <div class="container">
@@ -176,6 +161,22 @@
           <div class="default-stamp-btn" id="defaultStamp2" title="기본 도장 2">
             <img src="http://iammary.mycafe24.com/IMAGE/stamp2.png" alt="도장2" crossorigin="anonymous">
             <span>도장 2</span>
+          </div>
+          <div class="default-stamp-btn" id="defaultStamp3" title="기본 도장 3" style="display:none">
+            <img src="http://iammary.mycafe24.com/IMAGE/stamp3.png" alt="도장3" crossorigin="anonymous">
+            <span>도장 3</span>
+          </div>
+          <div class="default-stamp-btn" id="defaultStamp4" title="기본 도장 4" style="display:none">
+            <img src="http://iammary.mycafe24.com/IMAGE/stamp4.png" alt="도장4" crossorigin="anonymous">
+            <span>도장 4</span>
+          </div>
+          <div class="default-stamp-btn" id="defaultStamp5" title="기본 도장 5" style="display:none">
+            <img src="http://iammary.mycafe24.com/IMAGE/stamp5.png" alt="도장5" crossorigin="anonymous">
+            <span>도장 5</span>
+          </div>
+          <div class="default-stamp-btn" id="defaultStamp6" title="기본 도장 6" style="display:none">
+            <img src="http://iammary.mycafe24.com/IMAGE/stamp6.png" alt="도장6" crossorigin="anonymous">
+            <span>도장 6</span>
           </div>
         </div>
       </div>
@@ -285,6 +286,8 @@ let currentPage = 1;
 let totalPages = 0;
 let scale = 1.0;
 let stampImgSrc = null;   // base64 data URL
+let stampFileBytes = null; // original file ArrayBuffer
+let stampFileMime = '';    // original file MIME type
 let stampImgNaturalW = 0;
 let stampImgNaturalH = 0;
 
@@ -411,7 +414,11 @@ removePdf.addEventListener('click', () => {
 // ---- Default Stamp (Password) ----
 const DEFAULT_STAMP_URLS = [
   'http://iammary.mycafe24.com/IMAGE/stamp1.png',
-  'http://iammary.mycafe24.com/IMAGE/stamp2.png'
+  'http://iammary.mycafe24.com/IMAGE/stamp2.png',
+  'http://iammary.mycafe24.com/IMAGE/stamp3.png',
+  'http://iammary.mycafe24.com/IMAGE/stamp4.png',
+  'http://iammary.mycafe24.com/IMAGE/stamp5.png',
+  'http://iammary.mycafe24.com/IMAGE/stamp6.png'
 ];
 let activeDefaultStampIndex = null; // 0 or 1
 
@@ -433,26 +440,84 @@ async function urlToDataUrl(url) {
 
 async function activateDefaultStamp(index) {
   activeDefaultStampIndex = index;
-  document.getElementById('defaultStamp1').classList.toggle('selected', index === 0);
-  document.getElementById('defaultStamp2').classList.toggle('selected', index === 1);
+  for (let i = 0; i < DEFAULT_STAMP_URLS.length; i++) {
+    const el = document.getElementById('defaultStamp' + (i + 1));
+    if (el) el.classList.toggle('selected', index === i);
+  }
 
   const url = DEFAULT_STAMP_URLS[index];
   showToast('기본 도장을 불러오는 중...', '');
-  const dataUrl = await urlToDataUrl(url);
-  stampImgSrc = dataUrl;
 
-  // Preview
-  stampPreviewImg.src = dataUrl;
+  // 1차: fetch (same-origin 또는 CORS 허용 서버)
+  let fetchOk = false;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const blob = await resp.blob();
+    stampFileMime = blob.type || 'image/png';
+    stampFileBytes = await blob.arrayBuffer();
+    stampImgSrc = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    fetchOk = true;
+  } catch(e) { /* CORS 또는 네트워크 오류 → 2차 시도 */ }
+
+  // 2차: img.crossOrigin='anonymous' + canvas (서버에 CORS 헤더가 있으면 성공)
+  if (!fetchOk) {
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const tmpImg = new Image();
+        tmpImg.crossOrigin = 'anonymous';
+        tmpImg.onload = () => {
+          try {
+            const cv = document.createElement('canvas');
+            cv.width = tmpImg.naturalWidth;
+            cv.height = tmpImg.naturalHeight;
+            cv.getContext('2d').drawImage(tmpImg, 0, 0);
+            cv.toBlob(b => {
+              if (!b) { reject(new Error('toBlob 실패')); return; }
+              const fr = new FileReader();
+              fr.onload = e => resolve(e.target.result);
+              fr.onerror = reject;
+              fr.readAsDataURL(b);
+            }, 'image/png');
+          } catch(err) { reject(err); }
+        };
+        tmpImg.onerror = () => reject(new Error('crossOrigin 로드 실패'));
+        tmpImg.src = url;
+      });
+      stampImgSrc = dataUrl;
+      const b2 = await (await fetch(dataUrl)).blob();
+      stampFileMime = 'image/png';
+      stampFileBytes = await b2.arrayBuffer();
+      fetchOk = true;
+    } catch(e2) {
+      // 완전 CORS 차단: 미리보기만 가능, PDF 생성 불가
+      stampFileBytes = null;
+      stampFileMime = '';
+      stampImgSrc = url;
+    }
+  }
+
+  // 미리보기
+  stampPreviewImg.src = stampImgSrc;
   stampPreviewWrap.style.display = 'block';
   stampFileName.textContent = '기본 도장 ' + (index + 1);
   stampControls.style.display = 'block';
 
-  // Natural dimensions
+  // 자연 크기
   const img = new Image();
   img.onload = () => { stampImgNaturalW = img.naturalWidth; stampImgNaturalH = img.naturalHeight; };
-  img.src = dataUrl;
+  img.src = stampImgSrc;
 
-  showToast('기본 도장 ' + (index + 1) + '이 선택되었습니다.', 'success');
+  if (!fetchOk) {
+    showToast('CORS 제한으로 기본 도장을 PDF에 삽입할 수 없습니다. 도장 이미지를 직접 업로드해 주세요.', 'error');
+  } else {
+    showToast('기본 도장 ' + (index + 1) + '이 선택되었습니다.', 'success');
+  }
   updateDownloadBtn();
 }
 
@@ -466,14 +531,23 @@ document.getElementById('stampPwInput').addEventListener('input', function() {
     // 기본 도장이 활성화된 상태에서 비밀번호가 바뀌면 해제
     if (activeDefaultStampIndex !== null) {
       activeDefaultStampIndex = null;
-      document.getElementById('defaultStamp1').classList.remove('selected');
-      document.getElementById('defaultStamp2').classList.remove('selected');
+      for (let i = 0; i < DEFAULT_STAMP_URLS.length; i++) {
+        const el = document.getElementById('defaultStamp' + (i + 1));
+        if (el) el.classList.remove('selected');
+      }
     }
   }
 });
 
-document.getElementById('defaultStamp1').addEventListener('click', () => activateDefaultStamp(0));
-document.getElementById('defaultStamp2').addEventListener('click', () => activateDefaultStamp(1));
+for (let i = 0; i < DEFAULT_STAMP_URLS.length; i++) {
+  const btn = document.getElementById('defaultStamp' + (i + 1));
+  if (!btn) continue;
+  // 이미지 로드 성공 시 버튼 표시, 실패 시 숨김
+  const img = btn.querySelector('img');
+  img.addEventListener('load', () => { btn.style.display = ''; });
+  img.addEventListener('error', () => { btn.style.display = 'none'; });
+  btn.addEventListener('click', ((idx) => () => activateDefaultStamp(idx))(i));
+}
 
 // ---- Stamp Image Loading ----
 setupDrop(stampDrop, stampInput, loadStamp);
@@ -483,6 +557,12 @@ function loadStamp(file) {
     showToast('이미지 파일만 업로드 가능합니다.', 'error');
     return;
   }
+  stampFileMime = file.type;
+  // Read original bytes for high-quality PDF embedding
+  const abReader = new FileReader();
+  abReader.onload = e => { stampFileBytes = e.target.result; };
+  abReader.readAsArrayBuffer(file);
+
   const reader = new FileReader();
   reader.onload = e => {
     stampImgSrc = e.target.result;
@@ -504,13 +584,17 @@ function loadStamp(file) {
 
 removeStamp.addEventListener('click', () => {
   stampImgSrc = null;
+  stampFileBytes = null;
+  stampFileMime = '';
   stampPreviewWrap.style.display = 'none';
   stampControls.style.display = 'none';
   stampFileName.textContent = '';
   stampPreviewImg.src = '';
   activeDefaultStampIndex = null;
-  document.getElementById('defaultStamp1').classList.remove('selected');
-  document.getElementById('defaultStamp2').classList.remove('selected');
+  for (let i = 0; i < DEFAULT_STAMP_URLS.length; i++) {
+    const el = document.getElementById('defaultStamp' + (i + 1));
+    if (el) el.classList.remove('selected');
+  }
   updateDownloadBtn();
 });
 
@@ -813,22 +897,70 @@ function updateDownloadBtn() {
 
 downloadBtn.addEventListener('click', downloadPdf);
 
-// 도장 이미지를 원본 해상도 PNG Uint8Array로 변환 (모든 포맷 대응, 알파 채널 보존)
-function getStampPngBytes() {
+// 도장 이미지 embed: 찍힌 최대 도장 크기 기준 300 DPI 충족하도록 업스케일
+async function embedStampImage(pdfLibDoc) {
+  const TARGET_DPI = 300;
+  const PT_PER_INCH = 72;
+
+  // 모든 페이지에 찍힌 도장 중 최대 너비(PDF points) 계산
+  let maxStampW = 0;
+  for (const list of Object.values(stamps)) {
+    for (const s of list) {
+      if (s.w > maxStampW) maxStampW = s.w;
+    }
+  }
+  if (maxStampW === 0) maxStampW = 200;
+
+  // 300 DPI 기준 필요 픽셀 수
+  const neededPx = Math.ceil(maxStampW * TARGET_DPI / PT_PER_INCH);
+
+  // stampFileBytes가 있으면 blob URL 사용 (cross-origin 캔버스 오염 방지)
+  let imgSrc = stampImgSrc;
+  let blobUrl = null;
+  if (stampFileBytes) {
+    const blob = new Blob([stampFileBytes], { type: stampFileMime || 'image/png' });
+    blobUrl = URL.createObjectURL(blob);
+    imgSrc = blobUrl;
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => {
-      const offscreen = document.createElement('canvas');
-      offscreen.width = img.naturalWidth;
-      offscreen.height = img.naturalHeight;
-      const ctx = offscreen.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      offscreen.toBlob(blob => {
-        blob.arrayBuffer().then(buf => resolve(new Uint8Array(buf))).catch(reject);
-      }, 'image/png');
+    const cleanup = () => { if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; } };
+    const handleLoad = () => {
+      try {
+        const ratio = img.naturalHeight / img.naturalWidth;
+        // 원본이 이미 충분히 크면 그대로, 작으면 업스케일
+        const outW = Math.max(img.naturalWidth, neededPx);
+        const outH = Math.round(outW * ratio);
+
+        const offscreen = document.createElement('canvas');
+        offscreen.width = outW;
+        offscreen.height = outH;
+        const ctx = offscreen.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, outW, outH);
+
+        offscreen.toBlob(blob => {
+          cleanup();
+          if (!blob) { reject(new Error('Canvas toBlob 실패')); return; }
+          blob.arrayBuffer()
+            .then(buf => pdfLibDoc.embedPng(new Uint8Array(buf)))
+            .then(resolve)
+            .catch(reject);
+        }, 'image/png');
+      } catch(e) {
+        cleanup();
+        reject(e);
+      }
     };
-    img.onerror = reject;
-    img.src = stampImgSrc;
+    img.onload = handleLoad;
+    img.onerror = (e) => { cleanup(); reject(new Error('도장 이미지를 불러올 수 없습니다.')); };
+    img.src = imgSrc;
+    // 이미지가 이미 로드된 경우(캐시) onload가 발생하지 않을 수 있으므로 직접 호출
+    if (img.complete && img.naturalWidth > 0) {
+      handleLoad();
+    }
   });
 }
 
@@ -841,9 +973,10 @@ async function downloadPdf() {
     const pdfLibDoc = await PDFDocument.load(pdfBytes);
     const pages = pdfLibDoc.getPages();
 
-    // 원본 해상도 PNG 바이트로 임베드 (WebP/JPG/PNG 모두 대응, 투명도 유지)
-    const pngBytes = await getStampPngBytes();
-    const embeddedImg = await pdfLibDoc.embedPng(pngBytes);
+    if (!stampFileBytes && stampImgSrc && !stampImgSrc.startsWith('data:')) {
+      throw new Error('도장 이미지를 가져올 수 없습니다. 서버에 CORS 헤더(Access-Control-Allow-Origin)가 필요하거나, 도장 이미지를 직접 업로드해 주세요.');
+    }
+    const embeddedImg = await embedStampImage(pdfLibDoc);
 
     // For each page with stamps, draw them
     for (const [pageNumStr, stampList] of Object.entries(stamps)) {
@@ -903,23 +1036,6 @@ async function downloadPdf() {
     updateDownloadBtn();
   }
 }
-
-// ---- Download Index (this tool) ----
-(function() {
-  const link = document.getElementById('downloadIndexLink');
-  if (!link) return;
-  link.addEventListener('click', function(e) {
-    e.preventDefault();
-    const html = '<!DOCTYPE html>' + document.documentElement.outerHTML;
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'pdf-stamp-tool.html';
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-})();
 
 // Deselect stamp when clicking empty area
 stampOverlay.addEventListener('click', e => {
