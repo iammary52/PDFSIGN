@@ -397,8 +397,8 @@ removePdf.addEventListener('click', () => {
 
 // ---- Default Stamp (Password) ----
 const DEFAULT_STAMP_URLS = [
-  'https://iammary.mycafe24.com/IMAGE/stamp1.png',
-  'https://iammary.mycafe24.com/IMAGE/stamp2.png'
+  'IMAGE/stamp1.png',
+  'IMAGE/stamp2.png'
 ];
 let activeDefaultStampIndex = null; // 0 or 1
 
@@ -425,9 +425,12 @@ async function activateDefaultStamp(index) {
 
   const url = DEFAULT_STAMP_URLS[index];
   showToast('기본 도장을 불러오는 중...', '');
+
+  // 1차: fetch (same-origin 또는 CORS 허용 서버)
+  let fetchOk = false;
   try {
     const resp = await fetch(url);
-    if (!resp.ok) throw new Error('fetch failed');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const blob = await resp.blob();
     stampFileMime = blob.type || 'image/png';
     stampFileBytes = await blob.arrayBuffer();
@@ -437,22 +440,56 @@ async function activateDefaultStamp(index) {
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-  } catch(e) {
-    stampFileBytes = null;
-    stampFileMime = '';
-    stampImgSrc = url;
+    fetchOk = true;
+  } catch(e) { /* CORS 또는 네트워크 오류 → 2차 시도 */ }
+
+  // 2차: img.crossOrigin='anonymous' + canvas (서버에 CORS 헤더가 있으면 성공)
+  if (!fetchOk) {
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const tmpImg = new Image();
+        tmpImg.crossOrigin = 'anonymous';
+        tmpImg.onload = () => {
+          try {
+            const cv = document.createElement('canvas');
+            cv.width = tmpImg.naturalWidth;
+            cv.height = tmpImg.naturalHeight;
+            cv.getContext('2d').drawImage(tmpImg, 0, 0);
+            cv.toBlob(b => {
+              if (!b) { reject(new Error('toBlob 실패')); return; }
+              const fr = new FileReader();
+              fr.onload = e => resolve(e.target.result);
+              fr.onerror = reject;
+              fr.readAsDataURL(b);
+            }, 'image/png');
+          } catch(err) { reject(err); }
+        };
+        tmpImg.onerror = () => reject(new Error('crossOrigin 로드 실패'));
+        tmpImg.src = url;
+      });
+      stampImgSrc = dataUrl;
+      const b2 = await (await fetch(dataUrl)).blob();
+      stampFileMime = 'image/png';
+      stampFileBytes = await b2.arrayBuffer();
+      fetchOk = true;
+    } catch(e2) {
+      // 완전 CORS 차단: 미리보기만 가능, PDF 생성 불가
+      stampFileBytes = null;
+      stampFileMime = '';
+      stampImgSrc = url;
+    }
   }
 
-  // Preview
-  stampPreviewImg.src = dataUrl;
+  // 미리보기
+  stampPreviewImg.src = stampImgSrc;
   stampPreviewWrap.style.display = 'block';
   stampFileName.textContent = '기본 도장 ' + (index + 1);
   stampControls.style.display = 'block';
 
-  // Natural dimensions
+  // 자연 크기
   const img = new Image();
   img.onload = () => { stampImgNaturalW = img.naturalWidth; stampImgNaturalH = img.naturalHeight; };
-  img.src = dataUrl;
+  img.src = stampImgSrc;
 
   showToast('기본 도장 ' + (index + 1) + '이 선택되었습니다.', 'success');
   updateDownloadBtn();
@@ -900,7 +937,7 @@ async function downloadPdf() {
     const pages = pdfLibDoc.getPages();
 
     if (!stampFileBytes && stampImgSrc && !stampImgSrc.startsWith('data:')) {
-      throw new Error('기본 도장을 서버에서 불러오지 못했습니다. 페이지를 새로고침 후 다시 시도해주세요.');
+      throw new Error('도장 이미지를 가져올 수 없습니다. 서버에 CORS 헤더(Access-Control-Allow-Origin)가 필요하거나, 도장 이미지를 직접 업로드해 주세요.');
     }
     const embeddedImg = await embedStampImage(pdfLibDoc);
 
